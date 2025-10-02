@@ -660,7 +660,7 @@
         (async () => {
             try {
                 statusEl.innerHTML = '<i class="fas fa-sync-alt loader"></i> Загружаю модель...';
-                model = await tmImage.load(`model.json?${MODEL_VERSION}`, `metadata.json?${MODEL_VERSION}`);
+                model = await tmImage.load(`./model.json?${MODEL_VERSION}`, `./metadata.json?${MODEL_VERSION}`);
                 statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success);"></i> Модель загружена. Выберите файл или запустите камеру.';
             } catch (e) {
                 statusEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--error);"></i> Ошибка загрузки модели. Проверьте консоль для подробностей.';
@@ -850,4 +850,5 @@
         });
     </script>
 </body>
+
 </html>

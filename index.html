@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BandFinder - Определи группу по фото</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.4/dist/teachablemachine-image.min.js"></script>
+    <style>
+        :root {
+            --primary: #8A2BE2;
+            --primary-dark: #6A1CB0;
+            --secondary: #FF6B6B;
+            --accent: #4ECDC4;
+            --dark: #1A1A2E;
+            --light: #F7F7F9;
+            --gray: #6B7280;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --error: #EF4444;
+            --card-bg: #FFFFFF;
+            --border: #E5E7EB;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            --radius: 16px;
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+            color: var(--dark);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header Styles */
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0,0 L100,0 L100,100 Z" fill="rgba(255,255,255,0.1)"/></svg>');
+            background-size: cover;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            font-size: 2.5rem;
+            background: white;
+            color: var(--primary);
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .logo-text h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text p {
+            font-size: 1rem;
+            opacity: 0.9;
+            font-weight: 500;
+        }
+
+        /* Main Content */
+        main {
+            padding: 40px 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        @media (min-width: 992px) {
+            .grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 30px;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h2 i {
+            color: var(--accent);
+        }
+
+        /* Input Section */
+        .input-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            flex: 1;
+            min-width: 160px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-3px);
+        }
+
+        .btn-secondary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #3db8b1;
+            transform: translateY(-3px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .preview-container {
+            width: 100%;
+            height: 300px;
+            border-radius: var(--radius);
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        #preview, #cam canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .preview-placeholder {
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .preview-placeholder i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.7;
+        }
+
+        .settings-panel {
+            background: #f8fafc;
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .setting-item label {
+            font-weight: 600;
+            color: var(--dark);
+            min-width: 160px;
+        }
+
+        .slider-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 8px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+        }
+
+        .value-display {
+            font-weight: 700;
+            color: var(--primary);
+            min-width: 50px;
+            text-align: right;
+        }
+
+        .tips {
+            background: #f0f9ff;
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .tips h3 {
+            color: var(--primary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tips ul {
+            padding-left: 20px;
+        }
+
+        .tips li {
+            margin-bottom: 8px;
+        }
+
+        /* Results Section */
+        .results-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: var(--radius);
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .verdict {
+            padding: 20px;
+            border-radius: var(--radius);
+            background: linear-gradient(135deg, #f0f9ff 0%, #e1f5fe 100%);
+            border: 1px dashed var(--accent);
+            text-align: center;
+        }
+
+        .verdict h3 {
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+
+        .verdict .band-name {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 10px 0;
+        }
+
+        .verdict .confidence {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--success);
+        }
+
+        .verdict .other {
+            color: var(--error);
+        }
+
+        .probabilities {
+            margin-top: 20px;
+        }
+
+        .probability-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 15px;
+        }
+
+        .probability-label {
+            width: 150px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .probability-bar {
+            flex: 1;
+            height: 20px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .probability-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+
+        .probability-value {
+            width: 60px;
+            text-align: right;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--dark);
+            color: white;
+            padding: 30px 0;
+            margin-top: 50px;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .footer-links a {
+            color: white;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--accent);
+        }
+
+        .copyright {
+            width: 100%;
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        /* Loader */
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .setting-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .slider-container {
+                width: 100%;
+            }
+
+            .footer-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .footer-links {
+                justify-content: center;
+            }
+        }
+
+        /* Animation for results */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease forwards;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-music"></i>
+                    </div>
+                    <div class="logo-text">
+                        <h1>BandFinder</h1>
+                        <p>Определи музыкальную группу по фото</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="grid">
+                <!-- Левая колонка - ввод -->
+                <section class="card input-section">
+                    <h2><i class="fas fa-camera"></i> Ввод изображения</h2>
+                    
+                    <div class="btn-group">
+                        <button id="btn-camera" class="btn btn-primary">
+                            <i class="fas fa-video"></i> Запустить камеру
+                        </button>
+                        <label for="file-input" class="btn btn-secondary">
+                            <i class="fas fa-file-image"></i> Выбрать файл
+                        </label>
+                        <input id="file-input" type="file" accept="image/*" style="display: none;">
+                    </div>
+
+                    <div class="preview-container">
+                        <div id="preview-placeholder" class="preview-placeholder">
+                            <i class="fas fa-image"></i>
+                            <p>Изображение не выбрано</p>
+                        </div>
+                        <img id="preview" alt="Предпросмотр" style="display: none;">
+                        <div id="cam"></div>
+                    </div>
+
+                    <div class="settings-panel">
+                        <div class="setting-item">
+                            <label for="threshold">Порог уверенности:</label>
+                            <div class="slider-container">
+                                <input type="range" id="threshold" min="0.30" max="0.95" step="0.01" value="0.65">
+                                <span id="threshold-value" class="value-display">0.65</span>
+                            </div>
+                        </div>
+                        <p class="muted">Если вероятность распознавания ниже порога — результат будет отмечен как «Другое».</p>
+                    </div>
+
+                    <div class="tips">
+                        <h3><i class="fas fa-lightbulb"></i> Советы для лучшего распознавания:</h3>
+                        <ul>
+                            <li>Используйте качественные изображения с хорошим освещением</li>
+                            <li>Старайтесь, чтобы группа занимала большую часть кадра</li>
+                            <li>Избегайте размытых или сильно обрезанных фотографий</li>
+                            <li>Лучше всего работают фото с концертов или официальные промо-фото</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Правая колонка - результаты -->
+                <section class="card results-section">
+                    <h2><i class="fas fa-chart-bar"></i> Результаты распознавания</h2>
+                    
+                    <div id="status" class="status">
+                        <i class="fas fa-sync-alt loader"></i> Загружаю модель...
+                    </div>
+
+                    <div id="verdict" class="verdict" style="display: none;">
+                        <!-- Результат будет здесь -->
+                    </div>
+
+                    <div id="probabilities" class="probabilities">
+                        <!-- Вероятности будут здесь -->
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <i class="fas fa-music"></i>
+                    <span>BandFinder</span>
+                </div>
+                <div class="footer-links">
+                    <a href="#">О проекте</a>
+                    <a href="#">Помощь</a>
+                    <a href="#">Контакты</a>
+                </div>
+                <div class="copyright">
+                    <p>© 2023 BandFinder - Сервис распознавания музыкальных групп. Использует TensorFlow.js и Teachable Machine.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ==== Конфигурация ====
+        let THRESHOLD = 0.65;
+        const MARGIN_MIN = 0.10;
+        const ENTROPY_MAX = 1.2;
+
+        // ==== Элементы DOM ====
+        const btnCamera = document.getElementById('btn-camera');
+        const fileInput = document.getElementById('file-input');
+        const preview = document.getElementById('preview');
+        const previewPlaceholder = document.getElementById('preview-placeholder');
+        const camWrap = document.getElementById('cam');
+        const statusEl = document.getElementById('status');
+        const verdictEl = document.getElementById('verdict');
+        const probabilitiesEl = document.getElementById('probabilities');
+        const thresholdSlider = document.getElementById('threshold');
+        const thresholdValue = document.getElementById('threshold-value');
+
+        // ==== Модель и камера ====
+        let model, webcam, raf;
+        const MODEL_VERSION = 'v1';
+
+        // Обновление значения порога
+        thresholdSlider.addEventListener('input', e => {
+            THRESHOLD = Number(e.target.value);
+            thresholdValue.textContent = THRESHOLD.toFixed(2);
+        });
+
+        // Загрузка модели
+        (async () => {
+            try {
+                statusEl.innerHTML = '<i class="fas fa-sync-alt loader"></i> Загружаю модель...';
+                model = await tmImage.load(`model.json?${MODEL_VERSION}`, `metadata.json?${MODEL_VERSION}`);
+                statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success);"></i> Модель загружена. Выберите файл или запустите камеру.';
+            } catch (e) {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--error);"></i> Ошибка загрузки модели. Проверьте консоль для подробностей.';
+                console.error('Ошибка загрузки модели:', e);
+            }
+        })();
+
+        // Отрисовка вероятностей
+        function renderProbabilities(preds) {
+            probabilitiesEl.innerHTML = '';
+            
+            preds.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'probability-item fade-in';
+                
+                const label = document.createElement('div');
+                label.className = 'probability-label';
+                label.textContent = p.className;
+                
+                const bar = document.createElement('div');
+                bar.className = 'probability-bar';
+                
+                const fill = document.createElement('div');
+                fill.className = 'probability-fill';
+                fill.style.width = `${(p.probability * 100).toFixed(1)}%`;
+                bar.appendChild(fill);
+                
+                const value = document.createElement('div');
+                value.className = 'probability-value';
+                value.textContent = `${(p.probability * 100).toFixed(1)}%`;
+                
+                item.append(label, bar, value);
+                probabilitiesEl.appendChild(item);
+            });
+        }
+
+        // Отображение вердикта
+        function renderVerdict(preds) {
+            const sorted = [...preds].sort((a, b) => b.probability - a.probability);
+            const top1 = sorted[0];
+            const top2 = sorted[1] || { probability: 0 };
+
+            const belowThreshold = top1.probability < THRESHOLD;
+            const margin = top1.probability - top2.probability;
+            const smallMargin = margin < MARGIN_MIN;
+
+            // Расчет энтропии
+            let entropy = 0;
+            for (const p of preds) {
+                if (p.probability > 0) {
+                    entropy += -p.probability * Math.log(p.probability);
+                }
+            }
+            const highEntropy = entropy > ENTROPY_MAX;
+
+            verdictEl.style.display = 'block';
+            verdictEl.className = 'verdict fade-in';
+
+            if (belowThreshold || smallMargin || highEntropy) {
+                const reasons = [];
+                if (belowThreshold) reasons.push(`вероятность ниже порога ${Math.round(THRESHOLD * 100)}%`);
+                if (smallMargin) reasons.push(`малый разрыв с второй группой: ${(margin * 100).toFixed(1)}%`);
+                if (highEntropy) reasons.push(`низкая уверенность модели`);
+
+                verdictEl.innerHTML = `
+                    <h3>Результат анализа:</h3>
+                    <div class="band-name other">Не удалось определить</div>
+                    <p>Причина: ${reasons.join(', ')}</p>
+                `;
+            } else {
+                verdictEl.innerHTML = `
+                    <h3>Результат анализа:</h3>
+                    <div class="band-name">${top1.className}</div>
+                    <div class="confidence">Уверенность: ${(top1.probability * 100).toFixed(1)}%</div>
+                    <p>Разрыв со второй группой: ${(margin * 100).toFixed(1)}%</p>
+                `;
+            }
+        }
+
+        // Предсказание по изображению
+        async function predictOn(element) {
+            if (!model) return;
+            
+            try {
+                statusEl.innerHTML = '<i class="fas fa-sync-alt loader"></i> Анализирую изображение...';
+                const predictions = await model.predict(element);
+                
+                statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success);"></i> Анализ завершен';
+                renderVerdict(predictions);
+                renderProbabilities(predictions);
+            } catch (e) {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--error);"></i> Ошибка анализа. Проверьте консоль для подробностей.';
+                console.error('Ошибка предсказания:', e);
+            }
+        }
+
+        // Обработка выбора файла
+        fileInput.addEventListener('change', e => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            
+            // Проверка типа файла
+            if (!file.type.startsWith('image/')) {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--error);"></i> Пожалуйста, выберите файл изображения.';
+                return;
+            }
+            
+            const url = URL.createObjectURL(file);
+
+            // Остановка камеры, если она запущена
+            if (raf) {
+                cancelAnimationFrame(raf);
+            }
+            if (webcam) {
+                webcam.stop();
+                btnCamera.innerHTML = '<i class="fas fa-video"></i> Запустить камеру';
+            }
+
+            camWrap.innerHTML = '';
+            previewPlaceholder.style.display = 'none';
+            preview.style.display = 'block';
+            preview.src = url;
+
+            preview.onload = async () => {
+                await predictOn(preview);
+                URL.revokeObjectURL(url);
+            };
+            
+            preview.onerror = () => {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--error);"></i> Не удалось загрузить изображение.';
+                URL.revokeObjectURL(url);
+            };
+        });
+
+        // Обработка камеры
+        btnCamera.addEventListener('click', async () => {
+            if (!model) return;
+            
+            try {
+                if (webcam && webcam.webcam) {
+                    // Остановка камеры, если она уже запущена
+                    if (raf) cancelAnimationFrame(raf);
+                    webcam.stop();
+                    camWrap.innerHTML = '';
+                    btnCamera.innerHTML = '<i class="fas fa-video"></i> Запустить камеру';
+                    previewPlaceholder.style.display = 'flex';
+                    return;
+                }
+
+                btnCamera.innerHTML = '<i class="fas fa-sync-alt loader"></i> Запускаю камеру...';
+                
+                if (raf) cancelAnimationFrame(raf);
+                if (webcam) webcam.stop();
+
+                preview.style.display = 'none';
+                previewPlaceholder.style.display = 'none';
+                webcam = new tmImage.Webcam(400, 400, true);
+                await webcam.setup();
+                await webcam.play();
+                
+                camWrap.innerHTML = '';
+                camWrap.appendChild(webcam.canvas);
+                
+                btnCamera.innerHTML = '<i class="fas fa-stop-circle"></i> Остановить камеру';
+                
+                // Запуск цикла предсказания
+                async function loop() {
+                    if (!webcam) return;
+                    
+                    webcam.update();
+                    await predictOn(webcam.canvas);
+                    raf = requestAnimationFrame(loop);
+                }
+                
+                loop();
+            } catch (e) {
+                statusEl.innerHTML = `<i class="fas fa-exclamation-circle" style="color: var(--error);"></i> Камера недоступна: ${e.message}`;
+                console.error(e);
+                btnCamera.innerHTML = '<i class="fas fa-video"></i> Запустить камеру';
+            }
+        });
+
+        // Очистка при закрытии страницы
+        window.addEventListener('beforeunload', () => {
+            if (raf) cancelAnimationFrame(raf);
+            if (webcam) webcam.stop();
+        });
+    </script>
+</body>
+</html>
